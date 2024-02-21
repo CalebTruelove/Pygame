@@ -1,70 +1,45 @@
-import pygame
-import random
-import math
+import matplotlib.pyplot as plt
+import yfinance as yf
+from statsmodels.tsa.arima.model import ARIMA
+import pandas as pd
 
-# Initialize Pygame
-pygame.init()
+def generate_stock_chart(stock_name):
+    # Fetch stock data from Yahoo Finance
+    stock_data = fetch_stock_data(stock_name)
 
-# Set up some constants
-WIDTH, HEIGHT = 800, 600
-TILE_SIZE = 40
-PLAYER_COLOR = (0, 0, 255)
-ENEMY_COLOR = (255, 0, 0)
-WALL_COLOR = (255, 255, 255)
-BG_COLOR = (0, 0, 0)
+    # Convert the 'Period' index back to a 'Datetime' index
+    stock_data.index = stock_data.index.to_timestamp()
 
-# Set up the display
-screen = pygame.display.set_mode((WIDTH, HEIGHT))
+    # Extract relevant data for plotting
+    dates = stock_data.index
+    prices = stock_data['Close']
 
-# Set up the player
-player = pygame.Rect(WIDTH // 2, HEIGHT // 2, TILE_SIZE, TILE_SIZE)
+    # Plot the original stock chart
+    plt.plot(dates, prices, label='Original')
+    plt.xlabel('Date')
+    plt.ylabel('Price')
+    plt.title(f'Stock Chart for {stock_name}')
 
-# Set up the enemies
-enemies = [pygame.Rect(random.randint(0, WIDTH - TILE_SIZE), random.randint(0, HEIGHT - TILE_SIZE), TILE_SIZE, TILE_SIZE) for _ in range(5)]
+    # Create an ARIMA model and make predictions
+    model = ARIMA(prices, order=(5,1,0))
+    model_fit = model.fit()
+    forecast, stderr, conf_int, _ = model_fit.forecast(steps=30)
 
-# Set up the maze
-maze = [[random.choice([0, 1]) for _ in range(WIDTH // TILE_SIZE)] for _ in range(HEIGHT // TILE_SIZE)]
+    # Plot the forecasted stock chart
+    future_dates = pd.date_range(start=dates[-1], periods=31, freq='B')[1:]
+    plt.plot(future_dates, forecast, label='Forecast')
+    plt.legend()
 
-# Game loop
-running = True
-while running:
-    # Event handling
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-        elif event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_UP:
-                player.move_ip(0, -TILE_SIZE)
-            elif event.key == pygame.K_DOWN:
-                player.move_ip(0, TILE_SIZE)
-            elif event.key == pygame.K_LEFT:
-                player.move_ip(-TILE_SIZE, 0)
-            elif event.key == pygame.K_RIGHT:
-                player.move_ip(TILE_SIZE, 0)
+    plt.show()
 
-    # Enemy movement
-    for enemy in enemies:
-        dx, dy = player.centerx - enemy.centerx, player.centery - enemy.centery
-        mag = math.hypot(dx, dy)
-        dx, dy = dx / mag, dy / mag  # Normalize
-        enemy.move_ip(dx, dy)
+def fetch_stock_data(stock_name):
+    # Fetch stock data from Yahoo Finance
+    stock_data = yf.download(stock_name, start='2021-01-01', end='2022-12-31')
+    stock_data.index = stock_data.index.to_period('B')
+    return stock_data
 
-        # Collision with player
-        if player.colliderect(enemy):
-            running = False
+# Get user input for the stock name
+stock_name = input('Enter the stock name: ')
 
-    # Draw everything
-    screen.fill(BG_COLOR)
-    pygame.draw.rect(screen, PLAYER_COLOR, player)
-    for enemy in enemies:
-        pygame.draw.rect(screen, ENEMY_COLOR, enemy)
-    for y in range(HEIGHT // TILE_SIZE):
-        for x in range(WIDTH // TILE_SIZE):
-            if maze[y][x] == 1:
-                pygame.draw.rect(screen, WALL_COLOR, pygame.Rect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE))
-
-    # Update the display
-    pygame.display.flip()
-
-# Quit Pygame
-pygame.quit()
+# Generate the stock chart
+generate_stock_chart(stock_name)
